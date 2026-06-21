@@ -34,25 +34,11 @@ export default {
     if (request.method === "OPTIONS") return corsPreflight();
 
     try {
+      // Health check — GET / without a session
       if (request.method === "GET" && !request.headers.has("mcp-session-id")) {
-        let interval: ReturnType<typeof setInterval> | undefined;
-        const body = new ReadableStream({
-          start(controller) {
-            interval = setInterval(() => {
-              try { controller.enqueue(new TextEncoder().encode(": keepalive\n\n")); }
-              catch { clearInterval(interval); }
-            }, 30_000);
-            request.signal.addEventListener("abort", () => clearInterval(interval));
-          },
-          cancel() { if (interval) clearInterval(interval); },
-        });
-        return new Response(body, {
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-            ...CORS_HEADERS,
-          },
+        return new Response(JSON.stringify({ status: "ok" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...CORS_HEADERS },
         });
       }
 
