@@ -75,7 +75,7 @@ Server-side environment variables:
 | Variable | Default | Description |
 | --- | --- | --- |
 | `HONCHO_API_KEY` | — | API key for Honcho backend (only needed if auth enabled) |
-| `HONCHO_API_URL` | `http://localhost:8000` | Self-hosted Honcho backend URL |
+| `HONCHO_API_URL` | `http://honcho-api-1:8000` | Self-hosted Honcho backend URL |
 | `HONCHO_WORKSPACE_ID` | `default` | Workspace to operate in |
 | `PORT` | `3000` | MCP server listen port |
 | `HOST` | `0.0.0.0` | MCP server listen host |
