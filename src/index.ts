@@ -30,6 +30,7 @@ function corsPreflight(): Response {
 export default {
   port: parseInt(process.env.PORT || "3000", 10),
   hostname: process.env.HOST || "0.0.0.0",
+  idleTimeout: 0, // disable idle timeout — SSE connections stay open indefinitely
   async fetch(request: Request): Promise<Response> {
     if (request.method === "OPTIONS") return corsPreflight();
 
