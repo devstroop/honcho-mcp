@@ -1,4 +1,4 @@
-# Honcho Remote MCP Server
+# Honcho MCP Server
 
 A remote [MCP](https://modelcontextprotocol.io/) server for [Honcho](https://honcho.dev), providing AI memory and personalization tools to LLM clients like Claude Desktop.
 
