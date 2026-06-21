@@ -4,7 +4,7 @@ import { createServer } from "./server.js";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, mcp-session-id, X-Honcho-User-Name, X-Honcho-Workspace-ID, X-Honcho-Assistant-Name",
 };
 
 const config = parseConfig();
