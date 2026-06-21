@@ -1,0 +1,15 @@
+services:
+  honcho-mcp:
+    build: .
+    container_name: honcho-mcp
+    ports:
+      - "3000:3000"
+    environment:
+      - HONCHO_API_URL=${HONCHO_API_URL:-http://host.docker.internal:8000}
+      - HONCHO_API_KEY=${HONCHO_API_KEY:-}
+      - HONCHO_WORKSPACE_ID=${HONCHO_WORKSPACE_ID:-default}
+      - PORT=3000
+      - HOST=0.0.0.0
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

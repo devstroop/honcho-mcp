@@ -13,7 +13,6 @@ docker build -t honcho-mcp .
 docker run -d -p 3000:3000 \
   -e HONCHO_API_URL=http://your-honcho-backend:8000 \
   -e HONCHO_API_KEY=your-key \
-  -e HONCHO_USER_NAME=your-name \
   honcho-mcp
 ```
 
@@ -21,16 +20,15 @@ docker run -d -p 3000:3000 \
 
 ```bash
 bun install
-HONCHO_API_URL=http://your-honcho-backend:8000 HONCHO_API_KEY=your-key HONCHO_USER_NAME=your-name bun start
+HONCHO_API_URL=http://your-honcho-backend:8000 HONCHO_API_KEY=your-key bun start
 ```
 
 ## Connect
 
-Add the server URL to your MCP client config:
+Add the server URL to your MCP client config. You can pass per-request overrides as headers:
 
-> **Note**: The server reads these headers on every request and
-> they **override** the server-side environment variable defaults.
-> This lets you switch users/workspaces without restarting the server.
+> **Note**: Client headers override the server-side environment defaults on every request,
+> so you can switch users/workspaces without restarting the server.
 > The server handles both SSE (GET) and JSON-RPC (POST) at the root `/` path.
 
 **VS Code** — add to `.vscode/mcp.json`:
@@ -73,17 +71,24 @@ Add the server URL to your MCP client config:
 
 ## Configuration
 
-All settings are server-side environment variables. None are passed by the client.
+Server-side environment variables:
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `HONCHO_API_KEY` | — | Honcho API key (required) |
-| `HONCHO_USER_NAME` | `user` | Default user name |
-| `HONCHO_ASSISTANT_NAME` | `Assistant` | Default assistant name |
 | `HONCHO_API_URL` | `http://localhost:8000` | Self-hosted Honcho backend URL |
 | `HONCHO_WORKSPACE_ID` | `default` | Workspace to operate in |
 | `PORT` | `3000` | MCP server listen port |
 | `HOST` | `0.0.0.0` | MCP server listen host |
+
+Per-request client headers (override the server-side defaults):
+
+| Header | Default | Description |
+| --- | --- | --- |
+| `Authorization` | `HONCHO_API_KEY` | `Bearer <key>` |
+| `X-Honcho-User-Name` | `user` | Override user name |
+| `X-Honcho-Assistant-Name` | `Assistant` | Override assistant name |
+| `X-Honcho-Workspace-ID` | `HONCHO_WORKSPACE_ID` | Override workspace |
 
 ## Available Tools
 
