@@ -17,17 +17,13 @@ async function createSessionTransport() {
   );
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
+    onsessioninitialized: (id: string) => {
+      sessions.set(id, transport);
+    },
   });
   const server = createServer({ honcho, config });
   await server.connect(transport);
   return transport;
-}
-
-function withSid(resp: Response, sessionId: string): Response {
-  if (!sessionId || resp.headers.has("mcp-session-id")) return resp;
-  const h = new Headers(resp.headers);
-  h.set("mcp-session-id", sessionId);
-  return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
 }
 
 export default {
@@ -43,30 +39,37 @@ export default {
           headers: { "Content-Type": "application/json", ...CORS_HEADERS },
         });
       }
+
       let requestBody: any = null;
       if (request.method === "POST") {
         try { requestBody = await request.clone().json(); } catch {}
       }
+
       const sessionId = request.headers.get("mcp-session-id");
+
+      // Initialize: new transport for new session
       if (requestBody?.method === "initialize" && !sessionId) {
         const transport = await createSessionTransport();
         const resp = await transport.handleRequest(request);
-        const newId = resp.headers.get("mcp-session-id");
-        if (newId) sessions.set(newId, transport);
-        return withSid(resp, newId || "");
+        return resp;
       }
+
       if (!sessionId) {
         return new Response(JSON.stringify({
           jsonrpc: "2.0", error: { code: -32000, message: "Mcp-Session-Id header is required" }, id: null,
         }), { status: 400, headers: { "Content-Type": "application/json", ...CORS_HEADERS } });
       }
-      if (!sessions.has(sessionId)) {
-        const transport = await createSessionTransport();
-        sessions.set(sessionId, transport);
-      }
+
+      // Not initialized yet — wait for onsessioninitialized
       const transport = sessions.get(sessionId);
+      if (!transport) {
+        return new Response(JSON.stringify({
+          jsonrpc: "2.0", error: { code: -32001, message: `Session ${sessionId} not found` }, id: null,
+        }), { status: 404, headers: { "Content-Type": "application/json", ...CORS_HEADERS } });
+      }
+
       if (request.method === "DELETE") { sessions.delete(sessionId); }
-      return withSid(await transport.handleRequest(request), sessionId);
+      return await transport.handleRequest(request);
     } catch (e) {
       return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Error" }), {
         status: 500, headers: { "Content-Type": "application/json", ...CORS_HEADERS },
