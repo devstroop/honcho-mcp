@@ -32,6 +32,18 @@ export default {
   idleTimeout: 0,
   async fetch(request: Request): Promise<Response> {
     if (request.method === "OPTIONS") return corsPreflight();
+
+    // Some MCP clients (Kilo, etc.) don't send Accept:
+    // text/event-stream, application/json. The SDK transport
+    // requires it and returns 406 without it. Inject it so any
+    // MCP client works transparently.
+    const accept = request.headers.get("Accept") || "";
+    if (!accept.includes("text/event-stream")) {
+      const newHeaders = new Headers(request.headers);
+      newHeaders.set("Accept", "text/event-stream, application/json");
+      request = new Request(request, { headers: newHeaders });
+    }
+
     try {
       if (request.method === "GET" && !request.headers.has("mcp-session-id")) {
         return new Response(JSON.stringify({ status: "ok" }), {
