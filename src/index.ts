@@ -9,35 +9,29 @@ const CORS_HEADERS = {
 
 const config = parseConfig();
 const honcho = createClient(config);
+const server = createServer({ honcho, config });
+const sessions = new Map<string, any>();
 
-// WebStandardStreamableHTTPServerTransport is a SERVER-SIDE SINGLETON.
-// It handles ALL sessions internally via handleRequest() — no need
-// for a sessions Map or per-connect transport instances.
-// McpServer.connect(transport) can only be called ONCE per server.
-let transportSingleton: any = null;
-
-async function ensureTransport() {
-  if (transportSingleton) return;
+async function createSessionTransport() {
   const { WebStandardStreamableHTTPServerTransport } = await import(
     "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
   );
-  transportSingleton = new WebStandardStreamableHTTPServerTransport({
+  const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => crypto.randomUUID(),
   });
-  const server = createServer({ honcho, config });
-  await server.connect(transportSingleton);
+  await server.connect(transport);
+  return transport;
+}
+
+function withSid(resp: Response, sid: string): Response {
+  if (!sid || resp.headers.has("mcp-session-id")) return resp;
+  const h = new Headers(resp.headers);
+  h.set("mcp-session-id", sid);
+  return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
 }
 
 function corsPreflight(): Response {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
-}
-
-function withSessionHeader(resp: Response, sessionId: string): Response {
-  if (resp.headers.has("mcp-session-id")) return resp;
-  if (!sessionId) return resp;
-  const h = new Headers(resp.headers);
-  h.set("mcp-session-id", sessionId);
-  return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
 }
 
 export default {
@@ -46,9 +40,7 @@ export default {
   idleTimeout: 0,
   async fetch(request: Request): Promise<Response> {
     if (request.method === "OPTIONS") return corsPreflight();
-
     try {
-      // Health check — GET / without a session
       if (request.method === "GET" && !request.headers.has("mcp-session-id")) {
         return new Response(JSON.stringify({ status: "ok" }), {
           status: 200,
@@ -56,22 +48,41 @@ export default {
         });
       }
 
-      // Ensure transport is initialized on first request
-      if (!transportSingleton) {
-        await ensureTransport();
+      let requestBody: any = null;
+      if (request.method === "POST") {
+        try { requestBody = await request.clone().json(); } catch {}
       }
 
-      // Forward ALL requests (initialize, tools/list, tools/call, etc.)
-      // to the transport. It handles sessions internally via mcp-session-id header.
-      const resp = await transportSingleton.handleRequest(request);
-      const newId = resp.headers.get("mcp-session-id");
+      const sessionId = request.headers.get("mcp-session-id");
 
+      if (requestBody?.method === "initialize" && !sessionId) {
+        const transport = await createSessionTransport();
+        const resp = await transport.handleRequest(request);
+        const newId = resp.headers.get("mcp-session-id");
+        if (newId) sessions.set(newId, transport);
+        return withSid(resp, newId || "");
+      }
+
+      if (!sessionId) {
+        return new Response(JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32000, message: "Mcp-Session-Id header is required" },
+          id: null,
+        }), { status: 400, headers: { "Content-Type": "application/json", ...CORS_HEADERS } });
+      }
+
+      if (!sessions.has(sessionId)) {
+        const transport = await createSessionTransport();
+        sessions.set(sessionId, transport);
+      }
+
+      const transport = sessions.get(sessionId);
       if (request.method === "DELETE") {
-        return new Response(null, { status: 204, headers: CORS_HEADERS });
+        sessions.delete(sessionId);
       }
 
-      // Ensure mcp-session-id is always in response for VS Code compatibility
-      return withSessionHeader(resp, newId || request.headers.get("mcp-session-id") || "");
+      const resp = await transport.handleRequest(request);
+      return withSid(resp, sessionId);
     } catch (e) {
       return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Error" }), {
         status: 500,
